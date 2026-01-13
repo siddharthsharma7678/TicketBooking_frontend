@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import { Movies, Slot } from "./components/data";
+import { useFormik } from "formik";
 
 function App() {
+  //get the resent booked ticket start
+  const [movieData, setmovieData] = useState([]);
+  //get the resent booked ticket end
+
   const [movie, setMovie] = useState("");
   const [slot, setslot] = useState("");
   const [A1, setA1] = useState(0);
@@ -11,7 +16,7 @@ function App() {
   const [A4, setA4] = useState(0);
   const [D1, setD1] = useState(0);
   const [D2, setD2] = useState(0);
-  // const [selected, setselected] = useState(false);
+
   // function to selecte the movie
   const selectMovie = (value) => {
     setMovie(value);
@@ -23,21 +28,38 @@ function App() {
   };
 
   // handle the form submission save all the data to object and send tolocalstorage
-  const handleSubmit = () => {
-    const values = {
-      movie_name: movie,
-      slot_name: slot,
-      seats: {
-        a1: A1,
-        a2: A2,
-        a3: A3,
-        a4: A4,
-        d1: D1,
-        d2: D2,
-      },
-    };
-  };
-
+  const formik = useFormik({
+    initialValues: {
+      A1: 0,
+      A2: 0,
+      A3: 0,
+      A4: 0,
+      D1: 0,
+      D2: 0,
+    },
+    onSubmit: async (values, { resetForm }) => {
+      const payload = {
+        A1: values.A1,
+        A2: values.A2,
+        A3: values.A3,
+        A4: values.A4,
+        D1: values.D1,
+        D2: values.D2,
+        MoviE: movie,
+        SlOT: slot,
+      };
+      try {
+        const data = localStorage.setItem(
+          "Movie_details",
+          JSON.stringify(payload)
+        );
+        setmovieData(JSON.parse(localStorage.getItem("Movie_details")));
+        resetForm();
+      } catch (e) {
+        console.error("Error is ", e.message);
+      }
+    },
+  });
   return (
     <>
       <div className="app-div flex w-[90vw] m-4 gap-8">
@@ -76,84 +98,85 @@ function App() {
               ))}
             </div>
           </div>
-          <div className="seat-row border rounded m-2">
-            <h4 className="mx-4 my-2 font-bold">Select the seats</h4>
-            <div className="seat-column flex gap-2 m-4">
-              <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
-                <h3 className="font-bold mb-2">Type A1</h3>
-                <input
-                  id="seat-A1"
-                  className="border sm:w-8 font-bold"
-                  min={0}
-                  value={A1}
-                  onChange={(e) => setA1(e.target.value)}
-                  type="number"
-                />
-              </div>
-              <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
-                <h3 className="font-bold mb-2">Type A2</h3>
-                <input
-                  id="seat-A2"
-                  className="border sm:w-8 font-bold"
-                  min={0}
-                  value={A2}
-                  onChange={(e) => setA2(e.target.value)}
-                  type="number"
-                />
-              </div>
-              <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
-                <h3 className="font-bold mb-2">Type A3</h3>
-                <input
-                  id="seat-A3"
-                  className="border sm:w-8 font-bold"
-                  min={0}
-                  value={A3}
-                  onChange={(e) => setA3(e.target.value)}
-                  type="number"
-                />
-              </div>
-              <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
-                <h3 className="font-bold mb-2">Type A4</h3>
-                <input
-                  id="seat-A4"
-                  className="border sm:w-8 font-bold"
-                  min={0}
-                  value={A4}
-                  onChange={(e) => setA4(e.target.value)}
-                  type="number"
-                />
-              </div>
-              <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
-                <h3 className="font-bold mb-2">Type D1</h3>
-                <input
-                  id="seat-D1"
-                  className="border sm:w-8 font-bold"
-                  min={0}
-                  value={D1}
-                  onChange={(e) => setD1(e.target.value)}
-                  type="number"
-                />
-              </div>
-              <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
-                <h3 className="font-bold mb-2">Type D2</h3>
-                <input
-                  id="seat-D2"
-                  className="border sm:w-8 font-bold"
-                  min={0}
-                  value={D2}
-                  onChange={(e) => setD2(e.target.value)}
-                  type="number"
-                />
+          <form onSubmit={formik.handleSubmit}>
+            <div className="seat-row border rounded m-2">
+              <h4 className="mx-4 my-2 font-bold">Select the seats</h4>
+              <div className="seat-column flex gap-2 m-4">
+                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                  <h3 className="font-bold mb-2">Type A1</h3>
+                  <input
+                    id="A1"
+                    className="border sm:w-8 font-bold"
+                    min={0}
+                    value={formik.values.A1}
+                    onChange={formik.handleChange}
+                    type="number"
+                  />
+                </div>
+                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                  <h3 className="font-bold mb-2">Type A2</h3>
+                  <input
+                    id="A2"
+                    className="border sm:w-8 font-bold"
+                    min={0}
+                    value={formik.values.A2}
+                    onChange={formik.handleChange}
+                    type="number"
+                  />
+                </div>
+                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                  <h3 className="font-bold mb-2">Type A3</h3>
+                  <input
+                    id="A3"
+                    className="border sm:w-8 font-bold"
+                    min={0}
+                    value={formik.values.A3}
+                    onChange={formik.handleChange}
+                    type="number"
+                  />
+                </div>
+                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                  <h3 className="font-bold mb-2">Type A4</h3>
+                  <input
+                    id="A4"
+                    className="border sm:w-8 font-bold"
+                    min={0}
+                    value={formik.values.A4}
+                    onChange={formik.handleChange}
+                    type="number"
+                  />
+                </div>
+                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                  <h3 className="font-bold mb-2">Type D1</h3>
+                  <input
+                    id="D1"
+                    className="border sm:w-8 font-bold"
+                    min={0}
+                    value={formik.values.D1}
+                    onChange={formik.handleChange}
+                    type="number"
+                  />
+                </div>
+                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                  <h3 className="font-bold mb-2">Type D2</h3>
+                  <input
+                    id="D2"
+                    className="border sm:w-8 font-bold"
+                    min={0}
+                    value={formik.values.D2}
+                    onChange={formik.handleChange}
+                    type="number"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-          <button
-            onClick={handleSubmit}
-            type="submit"
-            className="rounded border px-4 py-2 bg-gradient-to-r from-blue-500 to-pink-500"
-          >
-            Book Now
-          </button>
+            <button
+              type="submit"
+              className="rounded border px-4 py-2 bg-linear-to-r from-blue-500 to-pink-500"
+            >
+              Book Now
+            </button>
+          </form>
         </div>
         <div className="last-booking w-56">
           <div className="box border rounded-sm p-2">
@@ -161,28 +184,29 @@ function App() {
             <div className="details flex flex-col">
               <h4 className="font-bold">Seats:</h4>
               <h4 className="font-bold">
-                A1:<span className="text-gray-600">5</span>
+                A1:<span className="text-gray-600">{movieData["A1"]}</span>
               </h4>
               <h4 className="font-bold">
-                A2:<span className="text-gray-600">5</span>
+                A2:<span className="text-gray-600">{movieData["A2"]}</span>
               </h4>
               <h4 className="font-bold">
-                A3:<span className="text-gray-600">5</span>
+                A3:<span className="text-gray-600">{movieData["A3"]}</span>
               </h4>
               <h4 className="font-bold">
-                A4:<span className="text-gray-600">5</span>
+                A4:<span className="text-gray-600">{movieData["A4"]}</span>
               </h4>
               <h4 className="font-bold">
-                D1:<span className="text-gray-600">5</span>
+                D1:<span className="text-gray-600">{movieData["D1"]}</span>
               </h4>
               <h4 className="font-bold">
-                D2:<span className="text-gray-600">5</span>
+                D2:<span className="text-gray-600">{movieData["D2"]}</span>
               </h4>
               <h4 className="font-bold">
-                slot:<span className="text-gray-600">10:00 AM</span>
+                slot:<span className="text-gray-600">{movieData["SlOT"]}</span>
               </h4>
               <h4 className="font-bold">
-                Movie:<span className="text-gray-600">Tenet</span>
+                Movie:
+                <span className="text-gray-600">{movieData["MoviE"]}</span>
               </h4>
             </div>
           </div>

@@ -6,3 +6,11 @@ export const Movies = [
   "Come Play",
 ];
 export const Slot = ["10:00 AM", "01:00 PM", "03:00 PM", "08:00 PM"];
+export const Seats = [
+  "Type A1",
+  "Type A2",
+  "Type A3",
+  "Type A4",
+  "Type D1",
+  "Type D2",
+];
