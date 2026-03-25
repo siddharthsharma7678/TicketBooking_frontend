@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { Movies, Slot } from "./components/data";
 import { useFormik } from "formik";
+import axios from "axios";
 
 function App() {
   //get the resent booked ticket start
@@ -38,25 +39,47 @@ function App() {
       D2: 0,
     },
     onSubmit: async (values, { resetForm }) => {
+      if (!slot || !movie) {
+        alert("Please Select the Movie and Slot ");
+        return;
+      }
+      if (
+        values.A1 == 0 &&
+        values.A2 == 0 &&
+        values.A3 == 0 &&
+        values.A4 == 0 &&
+        values.D1 == 0 &&
+        values.D2 == 0
+      ) {
+        alert("Atleat One Ticket should be booked");
+        return;
+      }
       const payload = {
-        A1: values.A1,
-        A2: values.A2,
-        A3: values.A3,
-        A4: values.A4,
-        D1: values.D1,
-        D2: values.D2,
+        A1: Number(values.A1) || 0,
+        A2: Number(values.A2) || 0,
+        A3: Number(values.A3) || 0,
+        A4: Number(values.A4) || 0,
+        D1: Number(values.D1) || 0,
+        D2: Number(values.D2) || 0,
         MoviE: movie,
         SlOT: slot,
       };
       try {
-        const data = localStorage.setItem(
-          "Movie_details",
-          JSON.stringify(payload)
-        );
-        setmovieData(JSON.parse(localStorage.getItem("Movie_details")));
-        resetForm();
+        const data = await axios.post("/api/booking", payload);
+        try {
+          const data = localStorage.setItem(
+            "Movie_details",
+            JSON.stringify(payload),
+          );
+          setmovieData(JSON.parse(localStorage.getItem("Movie_details")));
+          setMovie("");
+          setslot("");
+          resetForm();
+        } catch (e) {
+          console.error("Error is ", e.message);
+        }
       } catch (e) {
-        console.error("Error is ", e.message);
+        console.log("error occured", e);
       }
     },
   });
@@ -181,34 +204,39 @@ function App() {
         <div className="last-booking w-56">
           <div className="box border rounded-sm p-2">
             <h1 className="font-extrabold text-lg">Last Booking Details:</h1>
-            <div className="details flex flex-col">
-              <h4 className="font-bold">Seats:</h4>
-              <h4 className="font-bold">
-                A1:<span className="text-gray-600">{movieData["A1"]}</span>
-              </h4>
-              <h4 className="font-bold">
-                A2:<span className="text-gray-600">{movieData["A2"]}</span>
-              </h4>
-              <h4 className="font-bold">
-                A3:<span className="text-gray-600">{movieData["A3"]}</span>
-              </h4>
-              <h4 className="font-bold">
-                A4:<span className="text-gray-600">{movieData["A4"]}</span>
-              </h4>
-              <h4 className="font-bold">
-                D1:<span className="text-gray-600">{movieData["D1"]}</span>
-              </h4>
-              <h4 className="font-bold">
-                D2:<span className="text-gray-600">{movieData["D2"]}</span>
-              </h4>
-              <h4 className="font-bold">
-                slot:<span className="text-gray-600">{movieData["SlOT"]}</span>
-              </h4>
-              <h4 className="font-bold">
-                Movie:
-                <span className="text-gray-600">{movieData["MoviE"]}</span>
-              </h4>
-            </div>
+            {movieData.length == 0 ? (
+              <h1>No previous booking found</h1>
+            ) : (
+              <div className="details flex flex-col">
+                <h4 className="font-bold">Seats:</h4>
+                <h4 className="font-bold">
+                  A1:<span className="text-gray-600">{movieData["A1"]}</span>
+                </h4>
+                <h4 className="font-bold">
+                  A2:<span className="text-gray-600">{movieData["A2"]}</span>
+                </h4>
+                <h4 className="font-bold">
+                  A3:<span className="text-gray-600">{movieData["A3"]}</span>
+                </h4>
+                <h4 className="font-bold">
+                  A4:<span className="text-gray-600">{movieData["A4"]}</span>
+                </h4>
+                <h4 className="font-bold">
+                  D1:<span className="text-gray-600">{movieData["D1"]}</span>
+                </h4>
+                <h4 className="font-bold">
+                  D2:<span className="text-gray-600">{movieData["D2"]}</span>
+                </h4>
+                <h4 className="font-bold">
+                  slot:
+                  <span className="text-gray-600">{movieData["SlOT"]}</span>
+                </h4>
+                <h4 className="font-bold">
+                  Movie:
+                  <span className="text-gray-600">{movieData["MoviE"]}</span>
+                </h4>
+              </div>
+            )}
           </div>
         </div>
       </div>
