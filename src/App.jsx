@@ -7,8 +7,7 @@ import axios from "axios";
 function App() {
   //get the resent booked ticket start
   const [movieData, setmovieData] = useState([]);
-  //get the resent booked ticket end
-
+  const api = import.meta.env.VITE_BACKEND;
   const [movie, setMovie] = useState("");
   const [slot, setslot] = useState("");
   const [A1, setA1] = useState(0);
@@ -65,7 +64,7 @@ function App() {
         SlOT: slot,
       };
       try {
-        const data = await axios.post("/api/booking", payload);
+        const data = await axios.post(`${api}/api/booking`, payload);
         try {
           const data = localStorage.setItem(
             "Movie_details",
