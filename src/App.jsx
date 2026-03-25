@@ -3,11 +3,14 @@ import "./App.css";
 import { Movies, Slot } from "./components/data";
 import { useFormik } from "formik";
 import axios from "axios";
+import { resume } from "react-dom/server";
 
 function App() {
   //get the resent booked ticket start
   const [movieData, setmovieData] = useState([]);
   const api = import.meta.env.VITE_BACKEND;
+  const [movieArray, setmovieArray] = useState([]);
+  const [open, setopen] = useState(false);
   const [movie, setMovie] = useState("");
   const [slot, setslot] = useState("");
   const [A1, setA1] = useState(0);
@@ -26,8 +29,20 @@ function App() {
   const selectSlot = (value) => {
     setslot(value);
   };
+  const handleClick = () => {
+    setopen(false);
+  };
 
-  // handle the form submission save all the data to object and send tolocalstorage
+  useEffect(() => {
+    fetch(`${api}/api/booking`)
+      .then((res) => res.json())
+      .then((result) => {
+        const data = result.data;
+        setmovieArray(data);
+        console.log(data);
+      });
+  }, []);
+
   const formik = useFormik({
     initialValues: {
       A1: 0,
@@ -74,6 +89,7 @@ function App() {
           setMovie("");
           setslot("");
           resetForm();
+          setopen(true);
         } catch (e) {
           console.error("Error is ", e.message);
         }
@@ -84,6 +100,47 @@ function App() {
   });
   return (
     <>
+      {open && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-8 w-[90%] max-w-md text-center animate-scaleIn">
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="bg-green-100 p-4 rounded-full">
+                <svg
+                  className="w-10 h-10 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Text */}
+            <h1 className="text-2xl font-semibold text-gray-800 mb-2">
+              Booking Confirmed
+            </h1>
+            <p className="text-gray-600 mb-6">
+              Your ticket has been successfully booked.
+            </p>
+
+            {/* Button */}
+            <button
+              onClick={() => handleClick()}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition"
+            >
+              Book Another
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="app-div flex w-[90vw] m-4 gap-8">
         <div className="flex-1">
           <h1 className="text-2xl font-bold">Book that show!!</h1>
@@ -194,11 +251,45 @@ function App() {
             </div>
             <button
               type="submit"
-              className="rounded border px-4 py-2 bg-linear-to-r from-blue-500 to-pink-500"
+              className="rounded border mr-4 px-4 py-2 bg-linear-to-r from-blue-500 to-pink-500"
             >
               Book Now
             </button>
+            <button
+              type="button"
+              className="rounded border px-4 py-2 bg-linear-to-r from-pink-500"
+              to-blue-500
+            >
+              See Bookings
+            </button>
           </form>
+          <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
+                  Booking ID
+                </th>
+                <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
+                  Movie
+                </th>
+                <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
+                  Slot
+                </th>
+                <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
+                  Seat
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr className="border-t hover:bg-gray-50">
+                <td className="px-4 py-2">{movieArray._id}</td>
+                <td className="px-4 py-2">{movieArray.MoviE}</td>
+                <td className="px-4 py-2">{movieArray.SlOT}</td>
+                <td className="px-4 py-2">{movieArray.setA1}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <div className="last-booking w-56">
           <div className="box border rounded-sm p-2">
