@@ -1,109 +1,235 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import { Movies, Slot } from "./components/data";
+import { Movies, Seats, Slot } from "./components/data";
 import { useFormik } from "formik";
-import axios from "axios";
-import { resume } from "react-dom/server";
+
+const seatKeys = ["A1", "A2", "A3", "A4", "D1", "D2"];
+
+const createEmptySeats = () => ({
+  A1: 0,
+  A2: 0,
+  A3: 0,
+  A4: 0,
+  D1: 0,
+  D2: 0,
+});
+
+const normalizeSeatValue = (value) => {
+  const seatCount = Number(value);
+
+  if (!Number.isFinite(seatCount) || seatCount < 0) {
+    return 0;
+  }
+
+  return Math.trunc(seatCount);
+};
+
+const readStoredSeats = () => {
+  try {
+    const storedSeats = JSON.parse(localStorage.getItem("seats")) || {};
+
+    return seatKeys.reduce((seats, seatKey) => {
+      seats[seatKey] = normalizeSeatValue(storedSeats[seatKey]);
+      return seats;
+    }, createEmptySeats());
+  } catch {
+    return createEmptySeats();
+  }
+};
+
+const buildApiPayload = (movie, slot, seats) => ({
+  movie,
+  slot,
+  seats: seatKeys.reduce((seatMap, seatKey) => {
+    seatMap[seatKey] = normalizeSeatValue(seats[seatKey]);
+    return seatMap;
+  }, {}),
+});
+
+const mapBookingToUiShape = (booking) => {
+  if (!booking || typeof booking !== "object" || booking.message) {
+    return null;
+  }
+
+  const seatsSource =
+    booking.seats && typeof booking.seats === "object" ? booking.seats : booking;
+
+  return {
+    _id: booking._id,
+    MoviE: booking.movie || booking.MoviE || "",
+    SlOT: booking.slot || booking.SlOT || "",
+    A1: normalizeSeatValue(seatsSource.A1),
+    A2: normalizeSeatValue(seatsSource.A2),
+    A3: normalizeSeatValue(seatsSource.A3),
+    A4: normalizeSeatValue(seatsSource.A4),
+    D1: normalizeSeatValue(seatsSource.D1),
+    D2: normalizeSeatValue(seatsSource.D2),
+  };
+};
+
+const hasBooking = (booking) =>
+  booking && !Array.isArray(booking) && Object.keys(booking).length > 0;
 
 function App() {
-  //get the resent booked ticket start
-  const [movieData, setmovieData] = useState([]);
-  const api = import.meta.env.VITE_BACKEND;
-  const [movieArray, setmovieArray] = useState([]);
+  const latestBookingLoaded = useRef(false);
+  const [movieData, setmovieData] = useState(null);
+  const [movieArray, setmovieArray] = useState(null);
   const [open, setopen] = useState(false);
-  const [movie, setMovie] = useState("");
-  const [slot, setslot] = useState("");
-  const [A1, setA1] = useState(0);
-  const [A2, setA2] = useState(0);
-  const [A3, setA3] = useState(0);
-  const [A4, setA4] = useState(0);
-  const [D1, setD1] = useState(0);
-  const [D2, setD2] = useState(0);
-
-  // function to selecte the movie
-  const selectMovie = (value) => {
-    setMovie(value);
-  };
-
-  // function to select the slot
-  const selectSlot = (value) => {
-    setslot(value);
-  };
-  const handleClick = () => {
-    setopen(false);
-  };
-
-  useEffect(() => {
-    fetch(`${api}/api/booking`)
-      .then((res) => res.json())
-      .then((result) => {
-        const data = result.data;
-        setmovieArray(data);
-        console.log(data);
-      });
-  }, []);
+  const [movie, setMovie] = useState(() => localStorage.getItem("movie") || "");
+  const [slot, setslot] = useState(() => localStorage.getItem("slot") || "");
+  const [showBookings, setShowBookings] = useState(false);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(false);
+  const [bookingMessage, setBookingMessage] = useState("");
 
   const formik = useFormik({
-    initialValues: {
-      A1: 0,
-      A2: 0,
-      A3: 0,
-      A4: 0,
-      D1: 0,
-      D2: 0,
-    },
+    initialValues: readStoredSeats(),
     onSubmit: async (values, { resetForm }) => {
+      const normalizedSeats = seatKeys.reduce((seats, seatKey) => {
+        seats[seatKey] = normalizeSeatValue(values[seatKey]);
+        return seats;
+      }, {});
+
       if (!slot || !movie) {
         alert("Please Select the Movie and Slot ");
         return;
       }
-      if (
-        values.A1 == 0 &&
-        values.A2 == 0 &&
-        values.A3 == 0 &&
-        values.A4 == 0 &&
-        values.D1 == 0 &&
-        values.D2 == 0
-      ) {
+
+      if (!seatKeys.some((seatKey) => normalizedSeats[seatKey] > 0)) {
         alert("Atleat One Ticket should be booked");
         return;
       }
-      const payload = {
-        A1: Number(values.A1) || 0,
-        A2: Number(values.A2) || 0,
-        A3: Number(values.A3) || 0,
-        A4: Number(values.A4) || 0,
-        D1: Number(values.D1) || 0,
-        D2: Number(values.D2) || 0,
-        MoviE: movie,
-        SlOT: slot,
-      };
+
+      const payload = buildApiPayload(movie, slot, normalizedSeats);
+      setBookingMessage("");
+
       try {
-        const data = await axios.post(`${api}/api/booking`, payload);
-        try {
-          const data = localStorage.setItem(
-            "Movie_details",
-            JSON.stringify(payload),
-          );
-          setmovieData(JSON.parse(localStorage.getItem("Movie_details")));
-          setMovie("");
-          setslot("");
-          resetForm();
-          setopen(true);
-        } catch (e) {
-          console.error("Error is ", e.message);
+        const response = await fetch("/api/booking", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          setBookingMessage(result.message || "Unable to save booking.");
+          return;
         }
-      } catch (e) {
-        console.log("error occured", e);
+
+        const latestBooking = mapBookingToUiShape(result);
+        setmovieData(latestBooking);
+        if (showBookings) {
+          setmovieArray(latestBooking);
+        }
+
+        localStorage.removeItem("movie");
+        localStorage.removeItem("slot");
+        localStorage.removeItem("seats");
+        setMovie("");
+        setslot("");
+        resetForm({ values: createEmptySeats() });
+        setopen(true);
+      } catch (error) {
+        setBookingMessage("Unable to save booking.");
+        console.log("error occured", error);
       }
     },
   });
+
+  useEffect(() => {
+    if (latestBookingLoaded.current) {
+      return;
+    }
+
+    latestBookingLoaded.current = true;
+
+    const loadLatestBooking = async () => {
+      setIsLoadingBookings(true);
+
+      try {
+        const response = await fetch("/api/booking");
+        const result = await response.json();
+
+        if (response.ok && !result.message) {
+          const latestBooking = mapBookingToUiShape(result);
+          setmovieData(latestBooking);
+          setBookingMessage("");
+        } else if (result.message === "no previous booking found") {
+          setmovieData(null);
+          setBookingMessage("");
+        } else {
+          setmovieData(null);
+          setBookingMessage(result.message || "Unable to load bookings right now.");
+        }
+      } catch {
+        setmovieData(null);
+        setBookingMessage("Unable to load bookings right now.");
+      } finally {
+        setIsLoadingBookings(false);
+      }
+    };
+
+    loadLatestBooking();
+  }, []);
+
+  const selectMovie = (value) => {
+    setMovie(value);
+    localStorage.setItem("movie", value);
+  };
+
+  const selectSlot = (value) => {
+    setslot(value);
+    localStorage.setItem("slot", value);
+  };
+
+  const handleClick = () => {
+    setopen(false);
+  };
+
+  const buildSeatSummary = (booking) => {
+    if (!booking) {
+      return "No seats booked";
+    }
+
+    return Seats.map((seatLabel) => seatLabel.replace("Type ", ""))
+      .map((seat) => `${seat}: ${booking[seat] || 0}`)
+      .join(", ");
+  };
+
+  const handleSeeBookings = () => {
+    setShowBookings(true);
+    setmovieArray(movieData);
+    setTimeout(() => {
+      document
+        .getElementById("latest-booking")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  };
+
+  const handleSeatChange = (event) => {
+    const { name, value } = event.target;
+    const normalizedValue = normalizeSeatValue(value);
+    const nextSeatValues = {
+      ...formik.values,
+      [name]: normalizedValue,
+    };
+
+    formik.setFieldValue(name, normalizedValue);
+    localStorage.setItem("seats", JSON.stringify(nextSeatValues));
+  };
+
+  const bookingToShow = hasBooking(movieArray)
+    ? movieArray
+    : hasBooking(movieData)
+      ? movieData
+      : null;
+
   return (
     <>
       {open && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-8 w-[90%] max-w-md text-center animate-scaleIn">
-            {/* Icon */}
             <div className="flex justify-center mb-4">
               <div className="bg-green-100 p-4 rounded-full">
                 <svg
@@ -122,7 +248,6 @@ function App() {
               </div>
             </div>
 
-            {/* Text */}
             <h1 className="text-2xl font-semibold text-gray-800 mb-2">
               Booking Confirmed
             </h1>
@@ -130,7 +255,6 @@ function App() {
               Your ticket has been successfully booked.
             </p>
 
-            {/* Button */}
             <button
               onClick={() => handleClick()}
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition"
@@ -152,7 +276,7 @@ function App() {
                   key={index}
                   onClick={() => selectMovie(value)}
                   className={`border rounded-sm px-4 py-2 font-bold cursor-pointer ${
-                    movie === value ? "bg-red-500" : ""
+                    movie === value ? "bg-red-500 selected" : ""
                   } `}
                 >
                   {value}
@@ -163,13 +287,13 @@ function App() {
 
           <div className="slot-row border rounded m-2">
             <h4 className="mx-4 my-2 font-bold">Select A Slot</h4>
-            <div className="slot-column flex gap-4 m-4">
+            <div className="slot-column flex flex-wrap gap-4 m-4">
               {Slot.map((value, index) => (
                 <div
                   onClick={() => selectSlot(value)}
                   key={index}
                   className={`border rounded-sm px-4 py-2 font-bold cursor-pointer ${
-                    slot === value ? "bg-red-500" : ""
+                    slot === value ? "bg-red-500 selected" : ""
                   }`}
                 >
                   {value}
@@ -181,69 +305,99 @@ function App() {
             <div className="seat-row border rounded m-2">
               <h4 className="mx-4 my-2 font-bold">Select the seats</h4>
               <div className="seat-column flex gap-2 m-4">
-                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                <div
+                  className={`border rounded-sm px-4 py-2 flex flex-col justify-center items-center ${
+                    normalizeSeatValue(formik.values.A1) > 0 ? "selected" : ""
+                  }`}
+                >
                   <h3 className="font-bold mb-2">Type A1</h3>
                   <input
-                    id="A1"
+                    id="seat-A1"
+                    name="A1"
                     className="border sm:w-8 font-bold"
                     min={0}
                     value={formik.values.A1}
-                    onChange={formik.handleChange}
+                    onChange={handleSeatChange}
                     type="number"
                   />
                 </div>
-                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                <div
+                  className={`border rounded-sm px-4 py-2 flex flex-col justify-center items-center ${
+                    normalizeSeatValue(formik.values.A2) > 0 ? "selected" : ""
+                  }`}
+                >
                   <h3 className="font-bold mb-2">Type A2</h3>
                   <input
-                    id="A2"
+                    id="seat-A2"
+                    name="A2"
                     className="border sm:w-8 font-bold"
                     min={0}
                     value={formik.values.A2}
-                    onChange={formik.handleChange}
+                    onChange={handleSeatChange}
                     type="number"
                   />
                 </div>
-                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                <div
+                  className={`border rounded-sm px-4 py-2 flex flex-col justify-center items-center ${
+                    normalizeSeatValue(formik.values.A3) > 0 ? "selected" : ""
+                  }`}
+                >
                   <h3 className="font-bold mb-2">Type A3</h3>
                   <input
-                    id="A3"
+                    id="seat-A3"
+                    name="A3"
                     className="border sm:w-8 font-bold"
                     min={0}
                     value={formik.values.A3}
-                    onChange={formik.handleChange}
+                    onChange={handleSeatChange}
                     type="number"
                   />
                 </div>
-                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                <div
+                  className={`border rounded-sm px-4 py-2 flex flex-col justify-center items-center ${
+                    normalizeSeatValue(formik.values.A4) > 0 ? "selected" : ""
+                  }`}
+                >
                   <h3 className="font-bold mb-2">Type A4</h3>
                   <input
-                    id="A4"
+                    id="seat-A4"
+                    name="A4"
                     className="border sm:w-8 font-bold"
                     min={0}
                     value={formik.values.A4}
-                    onChange={formik.handleChange}
+                    onChange={handleSeatChange}
                     type="number"
                   />
                 </div>
-                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                <div
+                  className={`border rounded-sm px-4 py-2 flex flex-col justify-center items-center ${
+                    normalizeSeatValue(formik.values.D1) > 0 ? "selected" : ""
+                  }`}
+                >
                   <h3 className="font-bold mb-2">Type D1</h3>
                   <input
-                    id="D1"
+                    id="seat-D1"
+                    name="D1"
                     className="border sm:w-8 font-bold"
                     min={0}
                     value={formik.values.D1}
-                    onChange={formik.handleChange}
+                    onChange={handleSeatChange}
                     type="number"
                   />
                 </div>
-                <div className="border rounded-sm px-4 py-2 flex flex-col justify-center items-center">
+                <div
+                  className={`border rounded-sm px-4 py-2 flex flex-col justify-center items-center ${
+                    normalizeSeatValue(formik.values.D2) > 0 ? "selected" : ""
+                  }`}
+                >
                   <h3 className="font-bold mb-2">Type D2</h3>
                   <input
-                    id="D2"
+                    id="seat-D2"
+                    name="D2"
                     className="border sm:w-8 font-bold"
                     min={0}
                     value={formik.values.D2}
-                    onChange={formik.handleChange}
+                    onChange={handleSeatChange}
                     type="number"
                   />
                 </div>
@@ -257,73 +411,106 @@ function App() {
             </button>
             <button
               type="button"
-              className="rounded border px-4 py-2 bg-linear-to-r from-pink-500"
-              to-blue-500
+              onClick={handleSeeBookings}
+              className="rounded border px-4 py-2 bg-linear-to-r from-pink-500 to-blue-500"
             >
               See Bookings
             </button>
           </form>
-          <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
-                  Booking ID
-                </th>
-                <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
-                  Movie
-                </th>
-                <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
-                  Slot
-                </th>
-                <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
-                  Seat
-                </th>
-              </tr>
-            </thead>
+          {showBookings && (
+            <div
+              id="latest-booking"
+              className="mt-6 rounded-lg border border-gray-200 bg-white"
+            >
+              <div className="border-b border-gray-200 px-4 py-3">
+                <h2 className="text-lg font-bold text-gray-800">Booking Details</h2>
+              </div>
+              {bookingMessage && (
+                <div className="border-b border-gray-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  {bookingMessage}
+                </div>
+              )}
+              <table className="w-full border-gray-200 rounded-lg overflow-hidden">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
+                      Booking ID
+                    </th>
+                    <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
+                      Movie
+                    </th>
+                    <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
+                      Slot
+                    </th>
+                    <th className="text-left px-4 py-2 text-sm font-semibold text-gray-600">
+                      Seats
+                    </th>
+                  </tr>
+                </thead>
 
-            <tbody>
-              <tr className="border-t hover:bg-gray-50">
-                <td className="px-4 py-2">{movieArray._id}</td>
-                <td className="px-4 py-2">{movieArray.MoviE}</td>
-                <td className="px-4 py-2">{movieArray.SlOT}</td>
-                <td className="px-4 py-2">{movieArray.setA1}</td>
-              </tr>
-            </tbody>
-          </table>
+                <tbody>
+                  {isLoadingBookings ? (
+                    <tr className="border-t">
+                      <td className="px-4 py-3 text-sm text-gray-500" colSpan="4">
+                        Loading booking details...
+                      </td>
+                    </tr>
+                  ) : bookingToShow ? (
+                    <tr className="border-t hover:bg-gray-50">
+                      <td className="px-4 py-2">
+                        {bookingToShow._id || "Latest booking"}
+                      </td>
+                      <td className="px-4 py-2">{bookingToShow.MoviE}</td>
+                      <td className="px-4 py-2">{bookingToShow.SlOT}</td>
+                      <td className="px-4 py-2 whitespace-normal break-words">
+                        {buildSeatSummary(bookingToShow)}
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr className="border-t">
+                      <td className="px-4 py-3 text-sm text-gray-500" colSpan="4">
+                        No previous booking found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
         <div className="last-booking w-56">
           <div className="box border rounded-sm p-2">
             <h1 className="font-extrabold text-lg">Last Booking Details:</h1>
-            {movieData.length == 0 ? (
+            {!hasBooking(movieData) ? (
               <h1>No previous booking found</h1>
             ) : (
               <div className="details flex flex-col">
                 <h4 className="font-bold">Seats:</h4>
                 <h4 className="font-bold">
-                  A1:<span className="text-gray-600">{movieData["A1"]}</span>
+                  A1:<span className="text-gray-600">{movieData.A1}</span>
                 </h4>
                 <h4 className="font-bold">
-                  A2:<span className="text-gray-600">{movieData["A2"]}</span>
+                  A2:<span className="text-gray-600">{movieData.A2}</span>
                 </h4>
                 <h4 className="font-bold">
-                  A3:<span className="text-gray-600">{movieData["A3"]}</span>
+                  A3:<span className="text-gray-600">{movieData.A3}</span>
                 </h4>
                 <h4 className="font-bold">
-                  A4:<span className="text-gray-600">{movieData["A4"]}</span>
+                  A4:<span className="text-gray-600">{movieData.A4}</span>
                 </h4>
                 <h4 className="font-bold">
-                  D1:<span className="text-gray-600">{movieData["D1"]}</span>
+                  D1:<span className="text-gray-600">{movieData.D1}</span>
                 </h4>
                 <h4 className="font-bold">
-                  D2:<span className="text-gray-600">{movieData["D2"]}</span>
+                  D2:<span className="text-gray-600">{movieData.D2}</span>
                 </h4>
                 <h4 className="font-bold">
                   slot:
-                  <span className="text-gray-600">{movieData["SlOT"]}</span>
+                  <span className="text-gray-600">{movieData.SlOT}</span>
                 </h4>
                 <h4 className="font-bold">
                   Movie:
-                  <span className="text-gray-600">{movieData["MoviE"]}</span>
+                  <span className="text-gray-600">{movieData.MoviE}</span>
                 </h4>
               </div>
             )}
